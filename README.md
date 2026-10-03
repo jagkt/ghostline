@@ -1,4 +1,4 @@
-# GhostLine Voice MVP
+# GhostLine
 
 A self-hosted, local-first AI voice agent: FreeSWITCH handles real SIP/phone
 calls, a Python orchestrator bridges live audio to a fully local AI pipeline
@@ -6,12 +6,14 @@ calls, a Python orchestrator bridges live audio to a fully local AI pipeline
 text-to-speech), and Postgres persists every call and conversation turn.
 
 Built incrementally as a learning project: voice-only for now, chat and other
-channels planned next. See the companion architecture docs for the full
+channels planned next. 
+<!-- See the companion architecture docs for the full
 roadmap and the reasoning behind this MVP's deliberately lean stack versus
-the target-state production design.
+the target-state production design. -->
 
 ## Architecture
 
+```
 Caller (SIP/softphone)
 |
 FreeSWITCH (SIP signaling + RTP audio, Docker)
@@ -21,7 +23,7 @@ Python orchestrator (full_loop.py)
 |-- Ollama (LLM, local)
 |-- Piper (text-to-speech, local)
 |-- Postgres (calls, call_turns, QA session recordings)
-
+```
 
 Conversation loop: caller speaks -> FreeSWITCH records the turn -> Whisper
 transcribes -> Ollama replies (with full conversation history) -> Piper
@@ -32,10 +34,10 @@ into the same extension for the next turn.
 
 - Docker and Docker Compose
 - Python 3.11+
-- An actual SIP softphone to test with (e.g. MicroSIP on Windows, Linphone
+- An actual SIP softphone to test with (e.g., MicroSIP on Windows, Linphone
   on Linux) — this project doesn't include a web-based caller yet
 - ~6GB+ RAM available for the stack (FreeSWITCH + Postgres + a loaded
-  Whisper model + Ollama running concurrently); more is better, this was
+  Whisper model + Ollama running concurrently); more is better; this was
   developed on a resource-constrained VM and is CPU-bound and slow as a
   result (expect several seconds per conversational turn)
 
@@ -90,9 +92,9 @@ pip install greenswitch gevent requests python-dotenv psycopg[binary] \
             faster-whisper "av==11.*" piper-tts fastapi "uvicorn[standard]"
 ```
 
-(the `av==11.*` pin is required — a newer `av` breaks faster-whisper's audio
-decoding, see project history if you hit `TypeError: open() got an
-unexpected keyword argument 'metadata_errors'`)
+(The `av==11.*` pin is required — a newer `av` breaks faster-whisper's audio
+decoding; see project history if you hit `TypeError: open() got an
+unexpected keyword argument 'metadata_errors ')
 
 ## 4. Start the infrastructure
 
@@ -131,7 +133,7 @@ Wait for `Ready. Call 7000, have a back-and-forth conversation.`
 Register any SIP softphone against this machine's LAN IP, port `5060`,
 using one of the stock extensions (`1000`–`1019`, password set in
 `freeswitch-config/vars.xml`). Dial **7000**, wait for the beep, speak, and
-the AI should respond. Keep talking, it's multi-turn.
+the AI should respond. Keep talking; it's multi-turn.
 
 ## Known limitations (MVP, by design)
 
