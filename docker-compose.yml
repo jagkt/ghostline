@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ghostline_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+  freeswitch:
+    image: ghcr.io/patrickbaus/freeswitch-docker
+    container_name: ghostline_freeswitch
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - SYS_NICE
+    volumes:
+      - ./freeswitch-config:/etc/freeswitch
+      - ./recordings:/recordings
+
+volumes:
+  postgres_data:

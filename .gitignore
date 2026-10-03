@@ -1,0 +1,10 @@
+.env
+*.pyc
+__pycache__/
+venv/
+recordings/
+freeswitch-config/certs/
+*.onnx
+*.onnx.json
+orchestrator/voices/
+orchestrator/voices/
