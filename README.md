@@ -34,7 +34,7 @@ into the same extension for the next turn.
 - Python 3.11+
 - An actual SIP softphone to test with (e.g. MicroSIP on Windows, Linphone
   on Linux) — this project doesn't include a web-based caller yet
-- ~4GB+ RAM available for the stack (FreeSWITCH + Postgres + a loaded
+- ~6GB+ RAM available for the stack (FreeSWITCH + Postgres + a loaded
   Whisper model + Ollama running concurrently); more is better, this was
   developed on a resource-constrained VM and is CPU-bound and slow as a
   result (expect several seconds per conversational turn)
