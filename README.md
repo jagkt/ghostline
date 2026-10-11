@@ -1,4 +1,4 @@
-# GhostLine Voice MVP
+# GhostLine
 
 A self-hosted, local-first AI voice agent: FreeSWITCH handles real SIP/phone
 calls, a Python orchestrator bridges live audio to a fully local AI pipeline
@@ -12,6 +12,7 @@ the target-state production design.
 
 ## Architecture
 
+```
 Caller (SIP/softphone)
 |
 FreeSWITCH (SIP signaling + RTP audio, Docker)
@@ -21,12 +22,14 @@ Python orchestrator (full_loop.py)
 |-- Ollama (LLM, local)
 |-- Piper (text-to-speech, local)
 |-- Postgres (calls, call_turns, QA session recordings)
+```
 
-
+```
 Conversation loop: caller speaks -> FreeSWITCH records the turn -> Whisper
 transcribes -> Ollama replies (with full conversation history) -> Piper
 speaks the reply back into the call -> FreeSWITCH transfers the call back
 into the same extension for the next turn.
+```
 
 ## Prerequisites
 
@@ -68,15 +71,15 @@ CPU-only inference. A larger model will need a GPU to stay responsive.)
 cd orchestrator
 source venv/bin/activate   # see step 3 first if this doesn't exist yet
 pip install piper-tts
-mkdir -p voices
-echo "test" | piper --model en_US-lessac-medium --data-dir voices --download-dir voices --output_file /tmp/piper_test.wav
+mkdir -p piper_model
+echo "test" | piper --model en_US-lessac-medium --data-dir piper_model --download-dir piper_model --output_file /tmp/piper_test.wav
 ```
-That last command downloads the voice model into `orchestrator/voices/` on
+That last command downloads the voice model into `orchestrator/piper_model/` on
 first run (a few tens of MB) and produces a test file — if `/tmp/piper_test.wav`
 exists afterward, the voice is ready.
 
 **faster-whisper (speech-to-text):** no manual step needed, it downloads its
-model automatically (via Hugging Face) the first time `full_loop.py` runs.
+model automatically (via Hugging Face) the first time `voice/server.py` runs.
 This README is flagging it here so the first run isn't a surprise, expect a
 short pause the first time you start the orchestrator.
 
@@ -121,7 +124,7 @@ instead of the `stun:` lookup.
 ```bash
 cd orchestrator
 source venv/bin/activate
-python3 full_loop.py
+python3 -m voice.server
 ```
 
 Wait for `Ready. Call 7000, have a back-and-forth conversation.`
@@ -136,10 +139,10 @@ the AI should respond. Keep talking, it's multi-turn.
 ## Known limitations (MVP, by design)
 
 - Voice only; chat and other channels not yet built
-- No barge-in — the AI can't be interrupted mid-reply
+- No barge-in - the AI can't be interrupted mid-reply
 - No silence/"still there?" check-in after repeated empty turns
 - Single hardcoded extension (`7000`), no multi-tenant routing yet
-- CPU-only inference is slow (multiple seconds per turn) — a known,
+- CPU-only inference is slow (multiple seconds per turn) - a known,
   deliberate tradeoff for a local-first, zero-cloud-cost learning build
 
 See the companion architecture documents for the production target design
