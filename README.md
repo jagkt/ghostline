@@ -6,9 +6,10 @@ calls, a Python orchestrator bridges live audio to a fully local AI pipeline
 text-to-speech), and Postgres persists every call and conversation turn.
 
 Built incrementally as a learning project: voice-only for now, chat and other
-channels planned next. See the companion architecture docs for the full
+channels planned next.
+<!-- See the companion architecture docs for the full
 roadmap and the reasoning behind this MVP's deliberately lean stack versus
-the target-state production design.
+the target-state production design. -->
 
 ## Architecture
 
@@ -17,28 +18,27 @@ Caller (SIP/softphone)
 |
 FreeSWITCH (SIP signaling + RTP audio, Docker)
 | (Event Socket / ESL)
-Python orchestrator (full_loop.py)
+Python orchestrator (voice/server.py)
 |-- faster-whisper (speech-to-text, local)
 |-- Ollama (LLM, local)
 |-- Piper (text-to-speech, local)
 |-- Postgres (calls, call_turns, QA session recordings)
 ```
 
-```
+
 Conversation loop: caller speaks -> FreeSWITCH records the turn -> Whisper
 transcribes -> Ollama replies (with full conversation history) -> Piper
 speaks the reply back into the call -> FreeSWITCH transfers the call back
 into the same extension for the next turn.
-```
 
 ## Prerequisites
 
 - Docker and Docker Compose
 - Python 3.11+
-- An actual SIP softphone to test with (e.g. MicroSIP on Windows, Linphone
-  on Linux) — this project doesn't include a web-based caller yet
-- ~4GB+ RAM available for the stack (FreeSWITCH + Postgres + a loaded
-  Whisper model + Ollama running concurrently); more is better, this was
+- An actual SIP softphone to test with (e.g., MicroSIP on Windows, Linphone
+  on Linux): this project doesn't include a web-based caller yet
+- ~6GB+ RAM available for the stack (FreeSWITCH + Postgres + a loaded
+  Whisper model + Ollama running concurrently); more is better; this was
   developed on a resource-constrained VM and is CPU-bound and slow as a
   result (expect several seconds per conversational turn)
 
@@ -63,7 +63,7 @@ locally and must be present before the orchestrator will work.
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5:3b
 ```
-(`qwen2.5:3b` is the model this was built and tested against — chosen for
+(`qwen2.5:3b` is the model this was built and tested against, chosen for
 CPU-only inference. A larger model will need a GPU to stay responsive.)
 
 **Piper (text-to-speech voice):**
@@ -75,7 +75,7 @@ mkdir -p piper_model
 echo "test" | piper --model en_US-lessac-medium --data-dir piper_model --download-dir piper_model --output_file /tmp/piper_test.wav
 ```
 That last command downloads the voice model into `orchestrator/piper_model/` on
-first run (a few tens of MB) and produces a test file — if `/tmp/piper_test.wav`
+first run (a few tens of MB) and produces a test file: if `/tmp/piper_test.wav`
 exists afterward, the voice is ready.
 
 **faster-whisper (speech-to-text):** no manual step needed, it downloads its
@@ -89,12 +89,12 @@ short pause the first time you start the orchestrator.
 cd orchestrator
 python3 -m venv venv
 source venv/bin/activate
-pip install greenswitch gevent requests python-dotenv psycopg[binary] \
-            faster-whisper "av==11.*" piper-tts fastapi "uvicorn[standard]"
+pip install greenswitch gevent requests python-dotenv "psycopg[pool]" \
+            faster-whisper "av==11.*" piper-tts fastapi "uvicorn[standard]" httpx
 ```
 
-(the `av==11.*` pin is required — a newer `av` breaks faster-whisper's audio
-decoding, see project history if you hit `TypeError: open() got an
+(The `av==11.*` pin is required, a newer `av` breaks faster-whisper's audio
+decoding; see project history if you hit `TypeError: open() got an
 unexpected keyword argument 'metadata_errors'`)
 
 ## 4. Start the infrastructure
@@ -112,7 +112,7 @@ for f in migrations/*.sql; do
 done
 ```
 
-**Important — fix the FreeSWITCH external IP before testing on a LAN:**
+**Important, fix the FreeSWITCH external IP before testing on a LAN:**
 `freeswitch-config/vars.xml` defaults to resolving `external_sip_ip` and
 `external_rtp_ip` via STUN, which is correct for a real NAT'd deployment but
 breaks local/LAN testing (calls will drop after ~32 seconds). For local
@@ -121,30 +121,40 @@ instead of the `stun:` lookup.
 
 ## 5. Run the orchestrator
 
+Voice:
 ```bash
 cd orchestrator
 source venv/bin/activate
 python3 -m voice.server
 ```
-
 Wait for `Ready. Call 7000, have a back-and-forth conversation.`
+
+Chat:
+```bash
+cd orchestrator
+source venv/bin/activate
+uvicorn chat.server:app --host 0.0.0.0 --port 8001
+```
+Open `http://<this-machine's-LAN-IP>:8001/` in a browser.
 
 ## 6. Make a test call
 
 Register any SIP softphone against this machine's LAN IP, port `5060`,
-using one of the stock extensions (`1000`–`1019`, password set in
+using one of the stock extensions (`1000`-`1019`, password set in
 `freeswitch-config/vars.xml`). Dial **7000**, wait for the beep, speak, and
-the AI should respond. Keep talking, it's multi-turn.
+the AI should respond. Keep talking; it's multi-turn.
 
 ## Known limitations (MVP, by design)
 
-- Voice only; chat and other channels not yet built
-- No barge-in - the AI can't be interrupted mid-reply
+- No barge-in: the AI can't be interrupted mid-reply
 - No silence/"still there?" check-in after repeated empty turns
-- Single hardcoded extension (`7000`), no multi-tenant routing yet
-- CPU-only inference is slow (multiple seconds per turn) - a known,
+- Single hardcoded voice extension (`7000`), no multi-tenant routing yet
+- CPU-only inference is slow (multiple seconds per turn), a known,
   deliberate tradeoff for a local-first, zero-cloud-cost learning build
+- Chat's database connection is pooled and async; voice's is pooled and
+  synchronous (correct for its gevent-based runtime, see `db/voice.py` vs
+  `db/chat.py`), this split is intentional, not inconsistent
 
-See the companion architecture documents for the production target design
-and the specific thresholds for when each piece here should be upgraded.
-
+<!-- See the companion architecture documents for the production target
+design and the specific thresholds for when each piece here should be
+upgraded. -->
