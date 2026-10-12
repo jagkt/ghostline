@@ -32,13 +32,14 @@ logger.info("Whisper model loaded.")
 
 turn_counters = {}
 conversation_history = {}
+empty_turn_counters = {}
 
 
 def transcribe(host_path):
     segments, info = whisper_model.transcribe(host_path, beam_size=5)
     text = " ".join(s.text.strip() for s in segments).strip()
-    logger.info("Transcribed (lang=%s, p=%.2f): %r", info.language, info.language_probability, text)
-    return text
+    logger.info("Transcribed (lang=%s, p=%.2f, duration=%.2fs): %r", info.language, info.language_probability, info.duration, text)
+    return text, info.duration
 
 
 def synthesize(text, host_path):
@@ -58,6 +59,7 @@ def on_channel_create(fs, event):
         db.create_call(call_id, caller, dest)
         turn_counters[call_id] = 1
         conversation_history[call_id] = []
+        empty_turn_counters[call_id] = 0
 
         fs.send(f"api uuid_setvar {call_id} ghostline_turn 1")
 
@@ -78,6 +80,8 @@ def on_channel_hangup(event):
         db.close_call(call_id, cause)
         turn_counters.pop(call_id, None)
         conversation_history.pop(call_id, None)
+        empty_turn_counters.pop(call_id, None)
+        
     except Exception:
         logger.exception("Error in on_channel_hangup")
 
@@ -100,11 +104,45 @@ def on_record_stop(fs, event):
 
         db.create_turn(call_id, turn_number, container_record_path)
 
-        caller_text = transcribe(host_record_path)
-        if not caller_text:
-            logger.info("Empty transcript, skipping this turn.")
+        caller_text, duration = transcribe(host_record_path)
+        MIN_REAL_SPEECH_SECONDS = 2.0
+        
+        if not caller_text or duration < MIN_REAL_SPEECH_SECONDS:
+            if caller_text:
+                logger.info(
+                    "Calls %s: treating short transcript %r (%.2fs) as silence, below %.1fs threshold",
+                    call_id, caller_text, duration, MIN_REAL_SPEECH_SECONDS,
+                )
+            empty_count = empty_turn_counters.get(call_id, 0) + 1
+            empty_turn_counters[call_id] = empty_count
+            logger.info("Call %s: empty transcript (%d consecutive)", call_id, empty_count)
+            
+            if empty_count >= 4:
+                logger.info("Call %s: silence threshold exceeded, ending call.", call_id)
+                goodbye_path = os.path.join(HOST_DIR, f"goodbye_{call_id}.wav")
+                synthesize("I haven't heard anything for a while, so I'll end the call here. Goodbye.", goodbye_path)
+                container_goodbye_path = os.path.join(CONTAINER_DIR, f"goodbye_{call_id}.wav")
+                result = fs.send(f"api uuid_broadcast {call_id} {container_goodbye_path} aleg")
+                logger.info("Goodbye broadcast result: %s", result.data if result else None)
+                return
+            
+            if empty_count == 2:
+                checkin_path = os.path.join(HOST_DIR, f"checkin_{call_id}_turn{turn_number}.wav")
+                synthesize("Are you still there?", checkin_path)
+                container_checkin_path = os.path.join(CONTAINER_DIR, f"checkin_{call_id}_turn{turn_number}.wav")
+                fs.send(f"api uuid_broadcast {call_id} {container_checkin_path} aleg")
+                return
+            
+            next_turn = turn_counters.get(call_id, 1) + 1
+            turn_counters[call_id] = next_turn
+            cmd = f"uuid_transfer {call_id} 'set:ghostline_turn={next_turn},transfer:7000 XML default' inline"
+            fs.send(f"api {cmd}")
             return
-
+            # logger.info("Empty transcript, skipping this turn.")
+            # return
+            
+            
+        next_turn = turn_counters.get(call_id, 1) + 1
         history = conversation_history.get(call_id, [])
         reply_text = ask_ollama(
             history,
@@ -134,8 +172,14 @@ def on_playback_stop(fs, event):
     try:
         call_id = event.headers.get("Unique-ID")
         played_path = event.headers.get("Playback-File-Path", "")
-        if "response_" not in played_path:
+        
+        if "goodbye_" in played_path:
+            logger.info("Goodbye message finished for call %s, ending call.", call_id)
+            fs.send(f"api uuid_kill {call_id} NORMAL CLEARING")
             return
+        
+        if "response_" not in played_path and "checkin_" not in played_path:
+            return #ignore the beep and the holding tone
 
         next_turn = turn_counters.get(call_id, 1) + 1
         turn_counters[call_id] = next_turn
