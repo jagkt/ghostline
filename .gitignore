@@ -7,3 +7,4 @@ orchestrator/piper_model/
 __pycache__/
 recordings/
 venv/
+frontend/.env
