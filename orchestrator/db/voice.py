@@ -4,15 +4,24 @@ from .config import get_dsn
 pool = ConnectionPool(get_dsn(), min_size=1, max_size=10, open=True)
 
 
-def create_call(call_id, caller_number, destination_number):
+def get_account_id_for_did(e164_number):
+    with pool.connection() as conn:
+        cur = conn.execute(
+            "SELECT account_id from dids WHERE e164_number = %s AND status = 'active'",
+            (e164_number,),
+        )
+        row = cur.fetchone()
+        return str(row[0]) if row else None
+
+def create_call(call_id, caller_number, destination_number, account_id=None):
     with pool.connection() as conn:
         conn.execute(
             """
-            INSERT INTO calls (id, caller_number, destination_number)
-            VALUES (%s, %s, %s)
+            INSERT INTO calls (id, caller_number, destination_number, account_id)
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (id) DO NOTHING
             """,
-            (call_id, caller_number, destination_number),
+            (call_id, caller_number, destination_number, account_id),
         )
 
 

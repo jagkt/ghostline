@@ -17,6 +17,5 @@ down:
 logs:
 	docker compose logs -f
 
-
 psql:
 	docker compose exec postgres psql -U $${POSTGRES_USER:-ghostline} -d $${POSTGRES_DB:-ghostline}

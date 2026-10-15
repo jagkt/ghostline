@@ -772,6 +772,16 @@
         <action application="playback" data="tone_stream://%(200,15000,350);loops=-1"/>
       </condition>
     </extension>
+
+    <extension name="ghostline_did_test">
+      <condition field="destination_number" expression="^8500$">
+        <action application="answer"/>
+        <action application="playback" data="tone_stream://%(200,0,800)"/>
+        <action application="record" data="/recordings/ghostline_${uuid}_turn${ghostline_turn}.wav 8 200 2"/>
+        <!-- <action application="park"/>-->
+        <action application="playback" data="tone_stream://%(200,15000,350);loops=-1"/>
+      </condition>
+    </extension>
     <!--custom extensions ends-->
 
     <!--

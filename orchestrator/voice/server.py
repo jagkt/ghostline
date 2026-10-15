@@ -56,7 +56,14 @@ def on_channel_create(fs, event):
         caller = event.headers.get("Caller-Caller-ID-Number")
         dest = event.headers.get("Caller-Destination-Number")
         logger.info("Call started: %s (%s -> %s)", call_id, caller, dest)
-        db.create_call(call_id, caller, dest)
+        
+        account_id = db.get_account_id_for_did(dest)
+        if account_id:
+            logger.info("Call %s matched DID %s -> account %s", call_id, dest, account_id)
+        else:
+            logger.info("Call %s: destination %s is not a registered DID, no account tagged", call_id, dest)
+            
+        db.create_call(call_id, caller, dest, account_id)
         turn_counters[call_id] = 1
         conversation_history[call_id] = []
         empty_turn_counters[call_id] = 0
